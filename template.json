@@ -1,12 +1,18 @@
 {
   "AWSTemplateFormatVersion": "2010-09-09",
+  "Parameters": {
+    "KeyName": {
+      "Type": "AWS::EC2::KeyPair::KeyName",
+      "Default": "Jerem_CC"
+    }
+  },
   "Resources": {
     "MyEC2Instance": {
       "Type": "AWS::EC2::Instance",
       "Properties": {
         "ImageId": "ami-0c24ee2a1e3b9df45",
         "InstanceType": "t3.small",
-        "KeyName": "Jerem_CC",
+        "KeyName": { "Ref": "KeyName" },
         "SecurityGroupIds": ["JeremProject_EC2-SG"],
         "UserData": {
           "Fn::Base64": {
@@ -14,7 +20,35 @@
               "",
               [
                 "#!/bin/bash\n",
-                "echo 'Hello, World!' > /tmp/hello.txt\n"
+                "sudo mkdir -p /var/www/html\n",
+                "sudo yum install -y amazon-efs-utils\n",
+                "sudo mount -t nfs4 -o nfsvers=4.1,rsize=1048576,wsize=1048576,hard,timeo=600,retrans=2,noresvport fs-0d22b6f9cb34eb030.efs.eu-west-1.amazonaws.com:/ /var/www/html/\n",
+                "echo \"fs-0d22b6f9cb34eb030.efs.eu-west-1.amazonaws.com:/ /var/www/html/ efs defaults,_netdev 0 0\" | sudo tee -a /etc/fstab\n",
+                "sudo dnf install -y httpd wget php-fpm php-mysqli php-json php php-devel php-gd mariadb105-server\n",
+                "sudo systemctl start httpd && sudo systemctl enable httpd\n",
+                "cd /home/ec2-user/\n",
+                "wget https://wordpress.org/latest.tar.gz\n",
+                "tar -xzf latest.tar.gz\n",
+                "cd wordpress\n",
+                "cp wp-config-sample.php wp-config.php\n",
+                "sed -i 's/database_name_here/wordpress/' wp-config.php\n",
+                "sed -i 's/username_here/admin/' wp-config.php\n",
+                "sed -i 's/password_here/1234567890/' wp-config.php\n",
+                "sed -i 's/localhost/jeremproject-wordpress.caguqn4utdyr.eu-west-1.rds.amazonaws.com/' wp-config.php\n",
+                "curl -sS https://api.wordpress.org/secret-key/1.1/salt/ | sudo tee -a wp-config.php\n",
+                "echo \"define('FS_METHOD', 'direct');\" | sudo tee -a wp-config.php\n",
+                "cd /home/ec2-user\n",
+                "rm latest.tar.gz\n",
+                "sudo cp -r wordpress/* /var/www/html/\n",
+                "rm -rf wordpress\n",
+                "sudo chown -R apache:apache /var/www/\n",
+                "sudo sed -i 's/AllowOverride None/AllowOverride All/' /etc/httpd/conf/httpd.conf\n",
+                "sudo sed -i 's/upload_max_filesize = 2M/upload_max_filesize = 1000M/' /etc/php.ini\n",
+                "sudo sed -i 's/post_max_size = 8M/post_max_size = 1000M/' /etc/php.ini\n",
+                "sudo sed -i 's/memory_limit = 128M/memory_limit = 256M/' /etc/php.ini\n",
+                "sudo sed -i 's/max_execution_time = 30/max_execution_time = 300/' /etc/php.ini\n",
+                "sudo sed -i 's/max_input_time = 60/max_input_time = 300/' /etc/php.ini\n",
+                "sudo systemctl restart httpd\n"
               ]
             ]
           }
